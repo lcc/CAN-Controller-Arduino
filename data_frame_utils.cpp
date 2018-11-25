@@ -50,6 +50,7 @@ void setting_things_up (){
     count = 0;
     tail_count = 0;
     bit_pos = 0;
+    my_frame_zeros();
     
     if(write_bit){
         my_frame_mount();
@@ -200,20 +201,21 @@ void control_field_send_logic(){
     count += 1;
 
     if(can_type == can_A){
+        //cout << count << " " << tail_count << " " << bit_pos << "\n";
         if (bit_pos == 5){
             this_bit = my_frame.r0;
         }
-        else if(bit_pos == 0){
-            state = data_field;
-            tail_count = tail_count + my_frame.dlc * 8;
-        }
         else if( bit_pos < 5){
             this_bit = (my_frame.dlc >> (bit_pos - 1)) & 1;
+             if(bit_pos == 1){
+                state = data_field;
+                tail_count = tail_count + my_frame.dlc * 8;
+            }
         }
 
     }
     if(can_type == can_B){
-        //cout << count << " " << tail_count << " " << bit_pos << " ";
+        //cout << count << " " << tail_count << " " << bit_pos << "\n";
         if (bit_pos == 7){
             this_bit = my_frame.rtr;
         }
@@ -255,7 +257,8 @@ void arb_phase_send_logic ()    {
         }
     }
     // can_A => arb_count = 14 (assim que recebe o RTR) e can_B => arb_count = 32 (recebe o ID)
-    if(count <= tail_count){
+    // TODO > check if this +1 technique worked
+    if(count <= tail_count+1){
         // my frame id = 11110011010; my_frame_id >> (12 - 2) -> 10; 
         if(count <= 12){
             this_bit  = (my_frame.id >> bit_pos - 1) & 1;
@@ -263,10 +266,16 @@ void arb_phase_send_logic ()    {
         // doesn't matter what type of frame it's, it'll get the right bit
         // this takes into account that when a frame is made, no mistakes are
         // commited
-        // all bits must be set to false b4.
+        // all bits must be set to false b4 mounting the new frame.
         else if(count == 13){
-            this_bit = my_frame.rtr | my_frame.srr;
+            if(my_frame.ide){
+                this_bit =my_frame.srr;
+            }
+            else{
+                this_bit = my_frame.rtr;
+            }
         }
+
         else if(count == 14){
             this_bit = my_frame.ide;
         }
