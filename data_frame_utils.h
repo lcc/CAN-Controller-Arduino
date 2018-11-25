@@ -1,5 +1,7 @@
 #include <iostream>
-
+#include <stdlib.h> 
+#include <cmath>
+#include <bitset>
 using namespace std;
 
 typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error,inter_frame_space} states;
@@ -40,7 +42,6 @@ extern bool bit_stuff;
 extern int bit_stuff_count;
 extern int frame_count;
 extern int count;
-extern control_field_length = 0;
 //Var responsible for keeping track of the state of the system
 extern states state;
 extern can_types can_type;
@@ -62,3 +63,12 @@ void arb_phase_method ();
 
 //Sets all variables to it's inital values
 void setting_things_up ();
+void my_frame_mount();
+void my_frame_zeros();
+void arb_phase_send_logic();
+void control_field_send_logic();
+void data_field_send_logic();
+void crc_field_send_logic();
+void ack_field_send_logic();
+void eof_field_send_logic();
+bool set_bit_send();
