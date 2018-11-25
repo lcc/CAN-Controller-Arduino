@@ -1,23 +1,20 @@
 #include <iostream>
-#include <stack>
 
 using namespace std;
 
-typedef enum {inter_frame_space,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error} states;
+typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error,inter_frame_space} states;
 typedef enum {schrodinger_frame,can_A,can_B} can_types;
 
+// transformed eof into a bool for praticity
 typedef struct frame {
-    int id,dlc,crc,eof;
+    int id,id2,dlc,crc;
     long data;
-    bool sof,rtr,srr,ide,r0,r1,crc_delimiter,ack_slot,ack_delimeter;
+    bool sof,rtr,srr,ide,r0,r1,crc_delimiter,ack_slot,ack_delimeter,eof;
 }frame;
 
 // Standard values for the CAN protocol
 // can_A_arb_length =  ID + RTR = 1 + 11 
-#define can_A_arb_length = 12;
 // can_A_arb_length = ID + SRR + IDE + ID_2 + RTR = 11 + 1 + 1 + 18 + 1 =
-#define can_B_arb_length = 32;
-#define control_field_length = 6;
 
 // Flags responsible for triggering errors
 extern bool bit_stuff_error ;
@@ -42,12 +39,12 @@ extern bool bit_stuff;
 //Auxiliar vars, mostly counters
 extern int bit_stuff_count;
 extern int frame_count;
-
+extern int count;
+extern control_field_length = 0;
 //Var responsible for keeping track of the state of the system
 extern states state;
 extern can_types can_type;
 extern frame my_frame;
-extern stack<int> trm_bits;
 
 //----------------------------Functions Declarations---------------------------------------
 
