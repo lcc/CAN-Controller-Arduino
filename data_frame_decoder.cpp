@@ -3,8 +3,34 @@
 void debbug_myframe_can_B();
 void debbug_myframe_can_A();
 void print_frame_data();
+void testing_send_functions();
 
 int main (){
+    bool reade_bit = false;
+    int quant;
+    setting_things_up();
+
+    while(quant){
+        while(state != inter_frame_space){
+            reade_bit = rand() % 2;
+            cout << reade_bit;
+            //cout << state;
+            mount_package(reade_bit);
+        }
+
+        cout << "\n";
+        quant--;
+        if(!my_frame.ide){debbug_myframe_can_A();}
+        else{debbug_myframe_can_B();}
+
+        setting_things_up();
+        
+}
+    return 0;
+}
+
+void testing_send_functions (){
+    
     int quant = 10;
     bool reade_bit = false;
     write_bit = 1;
@@ -41,8 +67,8 @@ int main (){
     //cout << "\n" << my_frame.id << " " << (my_frame.srr | my_frame.rtr) << " " << my_frame.ide << " " << my_frame.id2 << '\n';
     //cout << '\n' << my_frame.dlc << ' ' << my_frame.data << '\n';
     //cout << '\n' << my_frame.r0 << " " << my_frame.r1 << " " << my_frame.dlc << "\n";
-    return 0;
 }
+
 void print_frame_data(){
     for (int i = my_frame.dlc*8-1; i >= 0; i--)
         std::cout << ((my_frame.data >> i) & 1);

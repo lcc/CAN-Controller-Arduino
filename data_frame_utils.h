@@ -52,23 +52,30 @@ extern frame my_frame;
 // essa função deve setar todas as flags de modo que todos os outros módulos
 // consigam interpretar se houve erro/bit_stuffed/qualquer flag de interesse
 void bit_stuff_error_detect();
-// monta os pacotes para os nós que estão lendo/escrevendo(no caso de uma perda de barramento)?
-// talvez haja um jeito melhor, guardar o bit caso perca e ir montando o frame daí!
-void packet_mount (bool this_bit);
 
-// Isso faz sentido quando estiver enviando o pacote? Não, para enviar basta montar o pacote e enviar no tempo certo.
-// Isso sempre checando o bit_stuff claro.
-// esse é o metódo apenas quando estou lendo e não quando estou escrevendo.
-void arb_phase_method ();
 
-//Sets all variables to it's inital values
+//Sets all variables to it's inital/specified values
 void setting_things_up ();
 void my_frame_mount();
 void my_frame_zeros();
+
+
+// functions used to select the specific bit to send
+bool set_bit_send();
 void arb_phase_send_logic();
 void control_field_send_logic();
 void data_field_send_logic();
 void crc_field_send_logic();
 void ack_field_send_logic();
 void eof_field_send_logic();
-bool set_bit_send();
+
+// functions used to mount the package when reading
+bool mount_package(bool bit);
+void arb_field_mount(bool bit);
+void control_field_mount(bool read_bit);
+void data_field_mount(bool read_bit);
+void crc_field_mount(bool read_bit);
+void ack_field_mount(bool read_bit);
+void eof_field_mount(bool read_bit);
+
+void dlc_correction();

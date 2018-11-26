@@ -26,8 +26,6 @@ frame my_frame;
 int count = 0;
 int tail_count = 0;
 int bit_pos = 0;
-// this one is needed bcuz tail count will be used to control
-// the end of arb_phase
 
 //This should intitialize all globla variables;
 void setting_things_up (){
@@ -325,53 +323,176 @@ void bit_stuff_error_detect (){
     }
 }
 
-// monta os pacotes para os nós que estão lendo/escrevendo(no caso de uma perda de barramento)?
-// talvez haja um jeito melhor, guardar o bit caso perca e ir montando o frame daí!
-void packet_mount (bool this_bit){
-    // faria um switch case com todos os possiveis estados e montaria o pacote de acordo com o 
-    // estado e o count!
-    // desconsidera bits de bit stuffing
-    if(!bit_stuff){
-        if(state == arb_phase){
-            if( (frame_count <= 11) ||  (can_type == can_B && frame_count > 13) )
-                my_frame.id = (my_frame.id << 1) || this_bit;
-            // quando frame_count é 12, nada é feito
-            if(frame_count == 13 && can_type == can_A){
-                my_frame.rtr = last_bit;
-                my_frame.ide = this_bit;
-            }
-            else if(frame_count == 13 && can_type == can_B){
-                my_frame.srr = last_bit;
-                my_frame.ide = this_bit;
+
+bool mount_package(bool read_bit) {
+
+    switch(state){
+        case SOF:
+            count = 1;
+            my_frame.sof = 1;
+            state = arb_phase;
+            tail_count = 12;
+            break;
+        case arb_phase:
+            arb_field_mount(read_bit);
+            break;
+        case control_field:
+            control_field_mount(read_bit);
+            break;
+        case data_field:
+            data_field_mount(read_bit);
+            break;
+        case CRC:
+            crc_field_mount(read_bit);
+            break;
+        case ACK:
+            ack_field_mount(read_bit);
+            break;
+        case EOFR:
+            eof_field_mount(read_bit);
+            break;
+    }
+    return this_bit;
+}
+
+void eof_field_mount (bool read_bit){
+    count += 1;
+    if(count < tail_count){
+        my_frame.eof = read_bit;    
+    }
+    //vai repetir o valor do último sete vezes
+    else{
+        my_frame.eof = read_bit;    
+        state = inter_frame_space;        
+    }
+}
+
+
+void ack_field_mount(bool read_bit){
+    count+=1;
+    if(count < tail_count){
+        my_frame.ack_slot = read_bit;
+    }    
+    else{
+        my_frame.ack_delimeter = read_bit;
+        state = EOFR;
+        tail_count = tail_count + 7;
+    }
+}
+
+void crc_field_mount(bool read_bit){
+    count+=1;
+    if(count < tail_count){
+        //cout << count << " " << tail_count << " " << bit_pos << " ";
+        my_frame.crc = (my_frame.crc << 1) | read_bit;
+        //cout << this_bit << "\n";
+    }
+    else {
+        my_frame.crc_delimiter = read_bit;
+        state = ACK;
+        tail_count = count + 2;
+    }
+}
+
+void data_field_mount(bool read_bit){
+    count+=1;
+    if(count < tail_count){
+        //cout << count << " " << tail_count << " " << bit_pos << " ";
+        my_frame.data = (my_frame.data << 1) | read_bit;
+        //cout << this_bit << "\n";
+    }
+
+    else{
+        my_frame.data = (my_frame.data << 1) | read_bit;
+        state = CRC;
+        tail_count = tail_count + 16;
+    }
+    
+}
+
+void control_field_mount (bool read_bit){
+    bit_pos = tail_count - count;
+    count += 1;
+
+   if(can_type == can_A){
+        //cout << count << " " << tail_count << " " << bit_pos << "\n";
+        if (bit_pos == 5){
+            my_frame.r0 = read_bit;
+        }
+        else if( bit_pos < 5){
+             my_frame.dlc  =  (my_frame.dlc << 1) | read_bit;
+             if(bit_pos == 1){
+                state = data_field;
+                dlc_correction();
+                tail_count = tail_count + my_frame.dlc * 8;
             }
         }
-        
     }
-    // does nothing for stuffed bit
-    else{
-        bit_stuff = false;
+
+    else if(can_type == can_B){
+        //cout << count << " " << tail_count << " " << bit_pos << "\n";
+        if (bit_pos == 7){
+             my_frame.rtr = read_bit;
+        }
+        else if(bit_pos == 6){
+             my_frame.r1 = read_bit;
+        }
+        else if(bit_pos == 5){
+             my_frame.r0 = read_bit;
+        }
+        else if(bit_pos < 5){
+            my_frame.dlc =  (my_frame.dlc << 1) | read_bit;
+            if(bit_pos == 1){
+                state = data_field;
+                dlc_correction();
+                tail_count = count + my_frame.dlc * 8;
+            }
+        }
     }
+
 }
 
-// Isso faz sentido quando estiver enviando o pacote? Não, para enviar basta montar o pacote e enviar no tempo certo.
-// Isso sempre checando o bit_stuff claro.
-// esse é o metódo apenas quando estou lendo e não quando estou escrevendo, porquê? montagem do pacote
-void arb_phase_method (){
-    bool this_bit;
-
-    if( (frame_count == 13 && can_type == can_A) || (frame_count == 33 && can_type == can_B))
-        state = control_field;
-    else{
-        //Se o contador está em 12 é porque estou recebendo o bit 13
-        if(frame_count == 12)
-            if(this_bit == true){can_type = can_A;}
-            else{can_type = can_B;}
+void arb_field_mount(bool read_bit){
+    count +=1;    
+     
+     if(count == 14){
+        if(!read_bit){
+            can_type = can_A;
+            my_frame.rtr = last_bit;
+            tail_count = 19;
+            state = control_field;
+        }
+        else{
+            can_type = can_B;
+            my_frame.srr = last_bit;
+            tail_count = 32;
+        }
     }
-    packet_mount(this_bit);
-    frame_count += 1;
+
+    if(count <= tail_count){
+        if(count <= 12){
+            my_frame.id  = (my_frame.id << 1) | read_bit;
+        }
+        else if(count == 13){
+            last_bit = read_bit;
+        }
+        else if(count == 14){
+            my_frame.ide = read_bit;
+        }
+        else if (count < 32){
+            my_frame.id2 = (my_frame.id2 << 1) | read_bit;
+        }
+        else if (count == 32){
+            my_frame.id2 = (my_frame.id2 << 1) | read_bit;
+            state = control_field;
+            tail_count += 7;         
+        }
+    }
+
 }
 
-
-bool get_error(){
-    return error_bit;
+void dlc_correction(){
+    if(my_frame.dlc > 8){
+        my_frame.dlc = 8;
+    }
 }
