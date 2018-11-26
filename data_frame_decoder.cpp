@@ -5,23 +5,23 @@ void debbug_myframe_can_A();
 void print_frame_data();
 void testing_send_functions();
 
+// no stuffing = (CRC_DELIMITER,ACK FIELD, END_OF_FRAME)
 int main (){
     bool reade_bit = false;
-    int quant;
+    int quant = 100;
     setting_things_up();
-
     while(quant){
-        while(state != inter_frame_space){
+        while(state != idle && state != error){
             reade_bit = rand() % 2;
             cout << reade_bit;
-            //cout << state;
             mount_package(reade_bit);
         }
-
+        
         cout << "\n";
         quant--;
-        if(!my_frame.ide){debbug_myframe_can_A();}
-        else{debbug_myframe_can_B();}
+        if(state == error){cout  << "\n";}
+        else if(!my_frame.ide){debbug_myframe_can_A();}
+        else if (my_frame.ide){debbug_myframe_can_B();}
 
         setting_things_up();
         

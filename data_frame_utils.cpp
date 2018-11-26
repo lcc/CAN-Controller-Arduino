@@ -4,7 +4,9 @@
 bool bit_stuff_error = false;
 bool start_seven_recessive_error = false;
 bool crc_error = false;
-bool error_bit = false;
+// crc_delimeter,eof,ack_delimiter and intermission (inter_frame_space)
+bool form_error = false;
+
 
 bool write_bit = false;
 
@@ -26,13 +28,11 @@ frame my_frame;
 int count = 0;
 int tail_count = 0;
 int bit_pos = 0;
-
 //This should intitialize all globla variables;
 void setting_things_up (){
     bit_stuff_error = false;
     start_seven_recessive_error = false;
     crc_error = false;
-    error_bit = false;
 
     received_bit = false;
     this_bit = false;
@@ -350,20 +350,41 @@ bool mount_package(bool read_bit) {
             break;
         case EOFR:
             eof_field_mount(read_bit);
+        case inter_frame_space:
+            inter_frame_space_check(read_bit);
+            break;
+        case idle:
             break;
     }
     return this_bit;
 }
 
+void inter_frame_space_check(bool read_bit){
+    count+=1;
+    
+    if(count < tail_count){
+        if(!read_bit){state = error; form_error = true;}
+    }
+
+    else{
+        if(!read_bit){state = error; form_error = true;}
+        else{state = idle;}
+    }
+}
+
 void eof_field_mount (bool read_bit){
     count += 1;
     if(count < tail_count){
-        my_frame.eof = read_bit;    
+        if(!read_bit){
+            state = error;
+            form_error = true;
+        }
     }
     //vai repetir o valor do último sete vezes
     else{
         my_frame.eof = read_bit;    
-        state = inter_frame_space;        
+        state = inter_frame_space;
+        tail_count += 3;
     }
 }
 
@@ -375,6 +396,7 @@ void ack_field_mount(bool read_bit){
     }    
     else{
         my_frame.ack_delimeter = read_bit;
+        if(!my_frame.ack_delimeter){state=error;form_error = true;}
         state = EOFR;
         tail_count = tail_count + 7;
     }
@@ -383,12 +405,11 @@ void ack_field_mount(bool read_bit){
 void crc_field_mount(bool read_bit){
     count+=1;
     if(count < tail_count){
-        //cout << count << " " << tail_count << " " << bit_pos << " ";
         my_frame.crc = (my_frame.crc << 1) | read_bit;
-        //cout << this_bit << "\n";
     }
     else {
         my_frame.crc_delimiter = read_bit;
+        if(!my_frame.crc_delimiter){form_error = true;state = error;}
         state = ACK;
         tail_count = count + 2;
     }

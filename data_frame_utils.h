@@ -4,7 +4,7 @@
 #include <bitset>
 using namespace std;
 
-typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error,inter_frame_space} states;
+typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error,inter_frame_space,idle} states;
 typedef enum {schrodinger_frame,can_A,can_B} can_types;
 
 // transformed eof into a bool for praticity
@@ -19,14 +19,13 @@ typedef struct frame {
 // can_A_arb_length = ID + SRR + IDE + ID_2 + RTR = 11 + 1 + 1 + 18 + 1 =
 
 // Flags responsible for triggering errors
-extern bool bit_stuff_error ;
-extern bool start_seven_recessive_error ;
-extern bool crc_error ;
-
+extern bool bit_stuff_error;
+extern bool start_seven_recessive_error;
+extern bool crc_error;
+extern bool form_error;
 //general way of saying an error occurred, will help by 
 //not having a gigantic bool expression to check wheter
 // an error occurred
-extern bool error_bit ;
 
 //Bits responsible for logic control of reading and writing 
 extern bool write_bit ;
@@ -77,5 +76,6 @@ void data_field_mount(bool read_bit);
 void crc_field_mount(bool read_bit);
 void ack_field_mount(bool read_bit);
 void eof_field_mount(bool read_bit);
+void inter_frame_space_check(bool read_bit);
 
 void dlc_correction();
