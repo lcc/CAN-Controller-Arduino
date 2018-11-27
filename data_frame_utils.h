@@ -43,6 +43,7 @@ extern int frame_count;
 extern int count;
 //Var responsible for keeping track of the state of the system
 extern states state;
+extern states error_state;
 extern can_types can_type;
 extern frame my_frame;
 
@@ -57,6 +58,8 @@ void bit_stuff_error_detect();
 void setting_things_up ();
 void my_frame_mount();
 void my_frame_zeros();
+
+void state_name(states curr_state);
 
 
 // functions used to select the specific bit to send
@@ -78,4 +81,8 @@ void ack_field_mount(bool read_bit);
 void eof_field_mount(bool read_bit);
 void inter_frame_space_check(bool read_bit);
 
+void bit_stuff_logic(bool read_bit);
 void dlc_correction();
+
+
+void change_mode(bool read_bit);

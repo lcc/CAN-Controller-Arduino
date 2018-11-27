@@ -4,34 +4,63 @@ void debbug_myframe_can_B();
 void debbug_myframe_can_A();
 void print_frame_data();
 void testing_send_functions();
+void testing_received_functions();
+void error_debbuger();
 
 // no stuffing = (CRC_DELIMITER,ACK FIELD, END_OF_FRAME)
 int main (){
+    testing_send_functions();
+    return 0;
+}
+
+void testing_received_functions(){
     bool reade_bit = false;
     int quant = 100;
     setting_things_up();
     while(quant){
+        cout << '\n' << quant << "\n";
         while(state != idle && state != error){
             reade_bit = rand() % 2;
-            cout << reade_bit;
-            mount_package(reade_bit);
-        }
-        
+            //daqui até o resto do while == lógica do bit_stuff pra quem ta lendo
+            if(!bit_stuff)mount_package(reade_bit);
+
+            if(SOF <= state < ACK){bit_stuff_logic(reade_bit);}
+
+            if(bit_stuff && reade_bit == last_bit){
+                error_state = state;
+                state = error;
+                //write_bit = 1;
+                cout << reade_bit;
+                break;
+            }
+            else if(bit_stuff && reade_bit != last_bit){bit_stuff = false;bit_stuff_count= 1;}
+            //revisar até  aqui
+       }
         cout << "\n";
         quant--;
-        if(state == error){cout  << "\n";}
-        else if(!my_frame.ide){debbug_myframe_can_A();}
-        else if (my_frame.ide){debbug_myframe_can_B();}
+        error_debbuger();
+        if(!my_frame.ide && state != error){debbug_myframe_can_A();}
+        else if (my_frame.ide && state != error){debbug_myframe_can_B();}
 
         setting_things_up();
-        
+    }
 }
-    return 0;
+
+void error_debbuger (){
+    if(bit_stuff_error){
+        cout << "-------Stuff_error-------" << "at state: ";
+        state_name(error_state);
+    }
+    if(form_error){
+        cout << "-------form_error-------" << "at state: ";
+        state_name(error_state);
+    }
+
 }
 
 void testing_send_functions (){
     
-    int quant = 10;
+    int quant = 20;
     bool reade_bit = false;
     write_bit = 1;
     setting_things_up();
@@ -47,7 +76,10 @@ void testing_send_functions (){
     }
 
     while(quant){
-        reade_bit = set_bit_send();
+        if(!bit_stuff){reade_bit = set_bit_send();}
+        else{reade_bit = !last_bit; bit_stuff = false;bit_stuff_count=1;}
+        if(SOF <= state < ACK){bit_stuff_logic(reade_bit);}        
+        
         cout  << reade_bit;
         std::cout.flush();
         if(state == inter_frame_space){

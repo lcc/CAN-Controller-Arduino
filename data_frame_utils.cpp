@@ -10,18 +10,16 @@ bool form_error = false;
 
 bool write_bit = false;
 
-bool received_bit = false;
-bool transmited_bit = false;
 bool last_bit = false;
 bool this_bit = false;
 // this_bit will probably substitute transmitted bit
 
 bool bit_stuff = false;
-int bit_stuff_count = 0;
-int frame_count = 0;
-//frame_count is the count the same as the count var I guess
+int bit_stuff_count = 1;
 
 states state = inter_frame_space;
+states error_state = inter_frame_space;
+
 can_types can_type = schrodinger_frame;
 frame my_frame;
 
@@ -29,19 +27,19 @@ int count = 0;
 int tail_count = 0;
 int bit_pos = 0;
 //This should intitialize all globla variables;
+
+
 void setting_things_up (){
     bit_stuff_error = false;
+    form_error = false;
     start_seven_recessive_error = false;
     crc_error = false;
 
-    received_bit = false;
     this_bit = false;
     
-    transmited_bit = false;
     last_bit = false;
     bit_stuff = false;
     bit_stuff_count = 0;
-    frame_count = 0;
     
     state = SOF;
 
@@ -169,7 +167,7 @@ void crc_field_send_logic(){
     count+=1;
     if(count <= tail_count){
         //cout << count << " " << tail_count << " " << bit_pos << " ";
-        this_bit = (my_frame.crc >> bit_pos - 1) & 1;
+        this_bit = (my_frame.crc >> (bit_pos - 1)) & 1;
         //cout << this_bit << "\n";
         if(bit_pos == 1){
             this_bit = my_frame.crc_delimiter;
@@ -363,11 +361,11 @@ void inter_frame_space_check(bool read_bit){
     count+=1;
     
     if(count < tail_count){
-        if(!read_bit){state = error; form_error = true;}
+        if(!read_bit){error_state = state;state = error; form_error = true;}
     }
 
     else{
-        if(!read_bit){state = error; form_error = true;}
+        if(!read_bit){error_state = state; state = error; form_error = true;}
         else{state = idle;}
     }
 }
@@ -376,6 +374,7 @@ void eof_field_mount (bool read_bit){
     count += 1;
     if(count < tail_count){
         if(!read_bit){
+            error_state = state;
             state = error;
             form_error = true;
         }
@@ -510,6 +509,131 @@ void arb_field_mount(bool read_bit){
         }
     }
 
+}
+
+ 
+void bit_stuff_logic(bool read_bit){
+    
+    if(write_bit){
+        if(last_bit == read_bit){
+            bit_stuff_count += 1;
+            // vou ter que escrever o próximo bit como !last
+            if(bit_stuff_count == 5){
+                bit_stuff = true;
+            }
+        }
+        //segue jogo
+        else{
+            bit_stuff_count = 1;
+            last_bit = read_bit;
+        }
+    }
+
+    else{
+         if(read_bit == last_bit){
+            bit_stuff_count += 1;
+            //próximo bit tem que ser de stuff
+            if(bit_stuff_count == 5){
+                bit_stuff = true;
+            }
+        }
+        else{
+            last_bit = read_bit;
+            bit_stuff_count = 0;
+        }
+    }
+    
+}
+
+void state_name (states curr_state){
+    switch(curr_state){    
+        case SOF:
+            cout << "SOF" << "\n";
+            break;
+        case arb_phase:
+            cout << "arb_phase" << '\n';
+            break;
+        case control_field:
+            cout << "control_field" << '\n';
+            break;
+        case data_field:
+            cout << "data_field"  << '\n';
+            break;
+        case CRC:
+            cout << "CRC" << '\n';
+            break;
+        case ACK:
+            cout << "ACK" << '\n';
+            break;
+        case EOFR:
+            cout << "end_of_frame" << '\n';
+        case inter_frame_space:
+            cout << "inter_frame_space" << '\n';
+            break;
+        case idle:
+            cout << "idle" << '\n';
+            break;  
+    }
+}
+
+
+
+// if lost arbitration,call this
+void change_mode (bool read_bit){
+    int aux = 0, aux2 = 0;
+    bool aux_bool,aux_bool2;
+    write_bit = false;
+    
+    if(count <= 12){
+        aux = my_frame.id = (my_frame.id >>  (tail_count - count)) << 1;
+        my_frame_zeros();
+        my_frame.id = aux;
+    }
+    // pode ter problemas com o srr e rtr? não o read_Bit seta um valor novo, nao checa se tem uma antigo
+    else if(count == 13){
+        aux = my_frame.id;
+        aux_bool = my_frame.rtr;
+        my_frame_zeros();            
+        my_frame.id = aux;
+        my_frame.rtr = aux_bool;
+        my_frame.srr = aux_bool;
+    }
+    else if(count == 14){
+        aux = my_frame.id;
+        aux_bool = my_frame.rtr;
+        aux_bool2 = my_frame.ide;
+        my_frame_zeros();            
+        my_frame.id = aux;
+        my_frame.srr = aux_bool;
+        my_frame.rtr = aux_bool;
+        my_frame.ide = aux_bool2;
+    }
+
+    else if (count > 14 && count <= 32){
+        aux = my_frame.id;
+        aux_bool = my_frame.srr;
+        aux_bool2 = my_frame.ide;
+        aux2 = my_frame.id2 = (my_frame.id2 >>  (tail_count - count)) << 1;
+        my_frame_zeros();            
+        my_frame.id = aux;
+        my_frame.rtr = aux_bool;
+        my_frame.srr = aux_bool;
+        my_frame.ide = aux_bool2;
+        my_frame.id2 = aux2;
+    }
+    else{
+        aux = my_frame.id;
+        aux_bool = my_frame.srr;
+        aux_bool2 = my_frame.ide;
+        aux2 = my_frame.id2 = (my_frame.id2 >>  (tail_count - count)) << 1;
+        aux_bool3 = my_frame.rtr;
+        my_frame_zeros();            
+        my_frame.id = aux;
+        my_frame.rtr = aux_bool3;
+        my_frame.srr = aux_bool;
+        my_frame.ide = aux_bool2;
+        my_frame.id2 = aux2;
+    }
 }
 
 void dlc_correction(){
