@@ -14,33 +14,26 @@ typedef struct frame {
     bool sof,rtr,srr,ide,r0,r1,crc_delimiter,ack_slot,ack_delimeter,eof;
 }frame;
 
-// Standard values for the CAN protocol
-// can_A_arb_length =  ID + RTR = 1 + 11 
-// can_A_arb_length = ID + SRR + IDE + ID_2 + RTR = 11 + 1 + 1 + 18 + 1 =
 
 // Flags responsible for triggering errors
 extern bool bit_stuff_error;
 extern bool start_seven_recessive_error;
 extern bool crc_error;
 extern bool form_error;
-//general way of saying an error occurred, will help by 
-//not having a gigantic bool expression to check wheter
-// an error occurred
 
 //Bits responsible for logic control of reading and writing 
-extern bool write_bit ;
-extern bool received_bit ;
-extern bool transmited_bit ;
-// saves the last bit for ease
-extern bool last_bit ;
-// guards all bits waiting to be transmitted
-// flag that indicates if this bit is a stuffed bit (for the receiver only)
+
+extern bool send_ack;
+extern bool write_bit;
+extern bool this_bit;
+extern bool last_bit;
 extern bool bit_stuff;
 
 //Auxiliar vars, mostly counters
 extern int bit_stuff_count;
-extern int frame_count;
 extern int count;
+extern int tail_count;
+
 //Var responsible for keeping track of the state of the system
 extern states state;
 extern states error_state;
@@ -70,9 +63,12 @@ void data_field_send_logic();
 void crc_field_send_logic();
 void ack_field_send_logic();
 void eof_field_send_logic();
+void error_frame_logic();
+void overload_frame_logic();
+void inter_frame_space_logic();
 
 // functions used to mount the package when reading
-bool mount_package(bool bit);
+void mount_package(bool bit);
 void arb_field_mount(bool bit);
 void control_field_mount(bool read_bit);
 void data_field_mount(bool read_bit);
@@ -81,8 +77,12 @@ void ack_field_mount(bool read_bit);
 void eof_field_mount(bool read_bit);
 void inter_frame_space_check(bool read_bit);
 
+// functions that run to assist the mounting/sending of messages
 void bit_stuff_logic(bool read_bit);
 void dlc_correction();
 
-
 void change_mode(bool read_bit);
+bool encoder();
+void decoder(bool read_bit);
+
+

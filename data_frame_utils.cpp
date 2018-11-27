@@ -7,12 +7,11 @@ bool crc_error = false;
 // crc_delimeter,eof,ack_delimiter and intermission (inter_frame_space)
 bool form_error = false;
 
-
+bool send_ack = true;
 bool write_bit = false;
 
 bool last_bit = false;
 bool this_bit = false;
-// this_bit will probably substitute transmitted bit
 
 bool bit_stuff = false;
 int bit_stuff_count = 1;
@@ -36,25 +35,25 @@ void setting_things_up (){
     crc_error = false;
 
     this_bit = false;
-    
     last_bit = false;
+
     bit_stuff = false;
     bit_stuff_count = 0;
     
     state = SOF;
+    error_state = inter_frame_space;
 
     count = 0;
     tail_count = 0;
     bit_pos = 0;
+    
     my_frame_zeros();
+    
     
     if(write_bit){
         my_frame_mount();
     }
 
-    else {
-        my_frame_zeros();
-    }
     can_type = schrodinger_frame;
 }
 
@@ -65,16 +64,16 @@ void my_frame_zeros(){
     my_frame.dlc = 0;
     my_frame.crc = 0;
     my_frame.data = 0;
-    my_frame.sof = 1;
+    my_frame.sof = 0;
     my_frame.rtr = 0;
     my_frame.srr = 0;
     my_frame.ide = 0;
     my_frame.r0 = 0;
     my_frame.r1 = 0;
-    my_frame.crc_delimiter = 0;
+    my_frame.crc_delimiter = 1;
     my_frame.ack_slot = 0;
-    my_frame.ack_delimeter = 0;
-    my_frame.eof = 0;
+    my_frame.ack_delimeter = 1;
+    my_frame.eof = 1;
 }
 void my_frame_mount(){
     my_frame.id = rand() % (int) pow(2,11);
@@ -83,7 +82,7 @@ void my_frame_mount(){
     my_frame.data = rand() % (int) (pow(2, my_frame.dlc*8 ));
     my_frame.ide = rand() % 2;
     if(my_frame.ide){my_frame.id2 = rand() % (int) pow(2,18);}
-    my_frame.sof = 1;
+    my_frame.sof = 0;
     my_frame.rtr = rand() % 2;
     my_frame.srr = 1;
 
@@ -98,36 +97,97 @@ void my_frame_mount(){
     my_frame.eof = 1;
 }
 
-bool set_bit_send (){
+// falta entrar no estado de erro => em virar um encoder no estado de erro, acho que posso chamar
+// setting things_up e depois setar write!
+void decoder(bool read_bit){
     
-    switch(state){
-        case SOF:
-            count = 1;
-            this_bit = my_frame.sof;
-            state = arb_phase;
-            tail_count = 12;
-            break;
-        case arb_phase:
-            arb_phase_send_logic();
-            break;
-        case control_field:
-            control_field_send_logic();
-            break;
-        case data_field:
-            data_field_send_logic();
-            break;
-        case CRC:
-            crc_field_send_logic();
-            break;
-        case ACK:
-            ack_field_send_logic();
-            break;
-        case EOFR:
-            eof_field_send_logic();
-            break;
+    if(!bit_stuff){mount_package(read_bit);}
+    
+    if(bit_stuff && read_bit == last_bit){
+        error_state = state;
+        state = error;
     }
+
+    else if(bit_stuff && read_bit != last_bit){bit_stuff = false;bit_stuff_count = 0;}
+    
+    if(state < ACK){bit_stuff_logic(read_bit);}
+    
+}
+
+// me dá o bit do tx, ainda não leva em conta arbitração, mas irá.
+bool encoder (){
+    bool transmiss_bit;
+
+    if(!bit_stuff){transmiss_bit = set_bit_send();}
+    else{transmiss_bit = !last_bit; bit_stuff = false;bit_stuff_count=0;}
+    if(state < ACK){bit_stuff_logic(transmiss_bit);}        
+    
+    return transmiss_bit;
+}
+
+
+bool set_bit_send (){
+
+        switch(state){
+            case SOF:
+                count = 1;
+                this_bit = my_frame.sof;
+                state = arb_phase;
+                tail_count = 12;
+                break;
+            case arb_phase:
+                arb_phase_send_logic();
+                break;
+            case control_field:
+                control_field_send_logic();
+                break;
+            case data_field:
+                data_field_send_logic();
+                break;
+            case CRC:
+                crc_field_send_logic();
+                break;
+            case ACK:
+                ack_field_send_logic();
+                break;
+            case EOFR:
+                eof_field_send_logic();
+                break;
+             //averiguar o número de error_frame e overload_frame
+            case error:
+                error_frame_logic();
+            case overload:
+                error_frame_logic();
+            case inter_frame_space:
+                inter_frame_space_logic();
+        }
+
     return this_bit;
 }
+
+void inter_frame_space_logic(){
+    count +=1;
+    bit_pos = tail_count - count;
+    if(!bit_pos){
+        state = idle;
+    }
+}
+
+void error_frame_logic(){
+    bit_pos = tail_count - count;
+    count +=1;
+    if (bit_pos > 6){
+        this_bit = 0;
+    }
+    else{
+        this_bit = 1;
+        if(bit_pos == 1){
+            state = inter_frame_space;     
+            tail_count +=3;
+        }
+    }
+}
+
 
 void eof_field_send_logic(){
     bit_pos = tail_count - count;
@@ -170,6 +230,7 @@ void crc_field_send_logic(){
         this_bit = (my_frame.crc >> (bit_pos - 1)) & 1;
         //cout << this_bit << "\n";
         if(bit_pos == 1){
+            bit_stuff_count  = 0;
             this_bit = my_frame.crc_delimiter;
             state = ACK;
             tail_count = count + 2;
@@ -229,16 +290,10 @@ void control_field_send_logic(){
             }
         }
     }
-    //cout << this_bit << "\n";
 }
-// cout inside arb_pahse: 11010110011111 001101110001010001
-//                        11010110011111 001101110001010001
-//cout inside case-switch:11010110011111 001101110001010001
-//for real cout          :11010110011111 001101110001010001
-// okidoki;
-void arb_phase_send_logic ()    {
+
+void arb_phase_send_logic () {
     bit_pos = tail_count - count;
-    // sets things up if the bit is recessive     
     count += 1;
     if(count == 14){
         if(!my_frame.ide){
@@ -252,17 +307,10 @@ void arb_phase_send_logic ()    {
             bit_pos = tail_count - count;     
         }
     }
-    // can_A => arb_count = 14 (assim que recebe o RTR) e can_B => arb_count = 32 (recebe o ID)
-    // TODO > check if this +1 technique worked
     if(count <= tail_count+1){
-        // my frame id = 11110011010; my_frame_id >> (12 - 2) -> 10; 
         if(count <= 12){
             this_bit  = (my_frame.id >> bit_pos - 1) & 1;
         }
-        // doesn't matter what type of frame it's, it'll get the right bit
-        // this takes into account that when a frame is made, no mistakes are
-        // commited
-        // all bits must be set to false b4 mounting the new frame.
         else if(count == 13){
             if(my_frame.ide){
                 this_bit =my_frame.srr;
@@ -288,46 +336,12 @@ void arb_phase_send_logic ()    {
 
 }
 
-void bit_stuff_error_detect (){
-    bool this_bit;
-    
-    if(write_bit){
-        if( this_bit == last_bit && bit_stuff_count == 5){
-            bit_stuff_count = 1;
-        }
-        else if ( this_bit == last_bit){
-            bit_stuff_count += 1;
-           // send(this_bit);
-        }
-        else{
-            bit_stuff_count = 0;
-           //send send(this_bit);
-        }
-    }
-    else {
-        if( bit_stuff_count == 5 && this_bit != last_bit){
-            bit_stuff = true;
-            bit_stuff_count = 0;
-        }
-        else if(this_bit == last_bit){
-            bit_stuff_count += 1;             
-       }
-       else{
-           bit_stuff_count = 0;
-       }
-        if(bit_stuff_count == 6){
-            bit_stuff_error = true;
-        }
-    }
-}
-
-
-bool mount_package(bool read_bit) {
+void mount_package(bool read_bit) {
 
     switch(state){
         case SOF:
             count = 1;
-            my_frame.sof = 1;
+            my_frame.sof = 0;
             state = arb_phase;
             tail_count = 12;
             break;
@@ -351,17 +365,21 @@ bool mount_package(bool read_bit) {
         case inter_frame_space:
             inter_frame_space_check(read_bit);
             break;
-        case idle:
-            break;
     }
-    return this_bit;
+    
+    if(state == error || state == overload){
+        write_bit = 1;
+        // error frame vai durar mais uns 12 bits
+        tail_count = count + 12;
+    }
+    
 }
 
 void inter_frame_space_check(bool read_bit){
     count+=1;
     
     if(count < tail_count){
-        if(!read_bit){error_state = state;state = error; form_error = true;}
+        if(!read_bit){error_state = state;state = overload; form_error = true;}
     }
 
     else{
@@ -379,7 +397,6 @@ void eof_field_mount (bool read_bit){
             form_error = true;
         }
     }
-    //vai repetir o valor do último sete vezes
     else{
         my_frame.eof = read_bit;    
         state = inter_frame_space;
@@ -391,12 +408,12 @@ void eof_field_mount (bool read_bit){
 void ack_field_mount(bool read_bit){
     count+=1;
     if(count < tail_count){
-        my_frame.ack_slot = read_bit;
+        send_ack = 0;
     }    
     else{
         my_frame.ack_delimeter = read_bit;
-        if(!my_frame.ack_delimeter){state=error;form_error = true;}
         state = EOFR;
+        if(!my_frame.ack_delimeter){state=error;form_error = true;}
         tail_count = tail_count + 7;
     }
 }
@@ -407,26 +424,30 @@ void crc_field_mount(bool read_bit){
         my_frame.crc = (my_frame.crc << 1) | read_bit;
     }
     else {
+        bit_stuff_count = 0;
         my_frame.crc_delimiter = read_bit;
-        if(!my_frame.crc_delimiter){form_error = true;state = error;}
         state = ACK;
+        if(!my_frame.crc_delimiter){form_error = true;state = error;}
         tail_count = count + 2;
     }
 }
 
 void data_field_mount(bool read_bit){
     count+=1;
-    if(count < tail_count){
-        //cout << count << " " << tail_count << " " << bit_pos << " ";
-        my_frame.data = (my_frame.data << 1) | read_bit;
-        //cout << this_bit << "\n";
-    }
+    if(my_frame.rtr || my_frame.dlc == 0){
+        if(count < tail_count){
+            //cout << count << " " << tail_count << " " << bit_pos << " ";
+            my_frame.data = (my_frame.data << 1) | read_bit;
+            //cout << this_bit << "\n";
+        }
 
-    else{
-        my_frame.data = (my_frame.data << 1) | read_bit;
-        state = CRC;
-        tail_count = tail_count + 16;
+        else{
+            my_frame.data = (my_frame.data << 1) | read_bit;
+            state = CRC;
+            tail_count = tail_count + 16;
+        }
     }
+    else{state = CRC; tail_count = count + 16 ;crc_field_mount(read_bit);}
     
 }
 
@@ -435,7 +456,7 @@ void control_field_mount (bool read_bit){
     count += 1;
 
    if(can_type == can_A){
-        //cout << count << " " << tail_count << " " << bit_pos << "\n";
+        //cout << '\n' << count << " " << tail_count << " " << bit_pos << "\n";
         if (bit_pos == 5){
             my_frame.r0 = read_bit;
         }
@@ -450,7 +471,7 @@ void control_field_mount (bool read_bit){
     }
 
     else if(can_type == can_B){
-        //cout << count << " " << tail_count << " " << bit_pos << "\n";
+        //cout << '\n' << count << " " << tail_count << " " << bit_pos << "\n";
         if (bit_pos == 7){
              my_frame.rtr = read_bit;
         }
@@ -513,7 +534,6 @@ void arb_field_mount(bool read_bit){
 
  
 void bit_stuff_logic(bool read_bit){
-    
     if(write_bit){
         if(last_bit == read_bit){
             bit_stuff_count += 1;
@@ -539,7 +559,7 @@ void bit_stuff_logic(bool read_bit){
         }
         else{
             last_bit = read_bit;
-            bit_stuff_count = 0;
+            bit_stuff_count = 1;
         }
     }
     
@@ -572,16 +592,21 @@ void state_name (states curr_state){
             break;
         case idle:
             cout << "idle" << '\n';
-            break;  
+            break;
+        case error:
+            cout << "error" << '\n';
+            break;
+        case overload:
+            cout << "overload" << '\n';
+            break;
     }
 }
-
 
 
 // if lost arbitration,call this
 void change_mode (bool read_bit){
     int aux = 0, aux2 = 0;
-    bool aux_bool,aux_bool2;
+    bool aux_bool,aux_bool2,aux_bool3 ;
     write_bit = false;
     
     if(count <= 12){
@@ -635,6 +660,7 @@ void change_mode (bool read_bit){
         my_frame.id2 = aux2;
     }
 }
+
 
 void dlc_correction(){
     if(my_frame.dlc > 8){

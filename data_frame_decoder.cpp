@@ -9,7 +9,8 @@ void error_debbuger();
 
 // no stuffing = (CRC_DELIMITER,ACK FIELD, END_OF_FRAME)
 int main (){
-    testing_send_functions();
+    testing_received_functions();
+    //testing_send_functions();
     return 0;
 }
 
@@ -19,32 +20,22 @@ void testing_received_functions(){
     setting_things_up();
     while(quant){
         cout << '\n' << quant << "\n";
-        while(state != idle && state != error){
-            reade_bit = rand() % 2;
-            //daqui até o resto do while == lógica do bit_stuff pra quem ta lendo
-            if(!bit_stuff)mount_package(reade_bit);
-
-            if(SOF <= state < ACK){bit_stuff_logic(reade_bit);}
-
-            if(bit_stuff && reade_bit == last_bit){
-                error_state = state;
-                state = error;
-                //write_bit = 1;
-                cout << reade_bit;
-                break;
-            }
-            else if(bit_stuff && reade_bit != last_bit){bit_stuff = false;bit_stuff_count= 1;}
-            //revisar até  aqui
+        while(state != idle && state != error && state != overload){
+            reade_bit = rand() % 2;            
+            decoder(reade_bit);
+            cout << reade_bit;
        }
         cout << "\n";
         quant--;
         error_debbuger();
-        if(!my_frame.ide && state != error){debbug_myframe_can_A();}
-        else if (my_frame.ide && state != error){debbug_myframe_can_B();}
-
+        if(!my_frame.ide ){debbug_myframe_can_A(); cout <<"Can A" << "\n";}
+        else if (my_frame.ide){debbug_myframe_can_B(); cout << "Can B" << "\n";}
+        write_bit = false;
         setting_things_up();
     }
 }
+//000110011110111110101010110101001011 1100000110010111100010000001010101101010011000001000000--bit_stuff_error--0
+//000110011110111110101010110101001011 00000000000000000000110010111100010000000101011010100110000010000000000000000000001011111111
 
 void error_debbuger (){
     if(bit_stuff_error){
@@ -76,9 +67,8 @@ void testing_send_functions (){
     }
 
     while(quant){
-        if(!bit_stuff){reade_bit = set_bit_send();}
-        else{reade_bit = !last_bit; bit_stuff = false;bit_stuff_count=1;}
-        if(SOF <= state < ACK){bit_stuff_logic(reade_bit);}        
+        
+        reade_bit = encoder();
         
         cout  << reade_bit;
         std::cout.flush();
@@ -102,8 +92,10 @@ void testing_send_functions (){
 }
 
 void print_frame_data(){
-    for (int i = my_frame.dlc*8-1; i >= 0; i--)
-        std::cout << ((my_frame.data >> i) & 1);
+    if(!my_frame.rtr){
+        for (int i = my_frame.dlc*8; i > 0; i--)
+            std::cout << ((my_frame.data >> i) & 1);
+    }
 }
 
 void debbug_myframe_can_B (){
