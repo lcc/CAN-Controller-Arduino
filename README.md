@@ -15,14 +15,11 @@ TODO:
     - Ack_error         [x] --> adicionar isso em cima de decoder() if(state == ack && send_ack){write = 0;} ====> Vou setar send_ack pra 0 quando chamar read;
     - CRC_error         []
 
-- 
-
+- Add arbitration logic when writing                          []
 - Add Overload and Error state methods                        [x]
 - Se frame for request -> não ter DATA -> passar direto para crc  => resolvi isso colocando no data_frame um check pra ver se o bit rtr ou o srr
 - Se DLC for zero-> passsar direto para crc 
 - Criar uma função raise_error                                [x]
-- Escrever o bit de ack                                       []
-    - Posso criar um ack_del_t e escrever 0                   []
 - Calculo do CRC juntamente com a verificação dele            []
 - Adicionar e testar super-módulo com bit-stuffing            [x]
 - Desenvolver lógica para a perda de uma arbitração           [x]

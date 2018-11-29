@@ -1,4 +1,5 @@
 #include "data_frame_utils.h"
+#include<string.h>  
 
 void debbug_myframe_can_B();
 void debbug_myframe_can_A();
@@ -7,19 +8,36 @@ void testing_send_functions();
 void testing_received_functions();
 void error_debbuger();
 
-// no stuffing = (CRC_DELIMITER,ACK FIELD, END_OF_FRAME)
 int main (){
     testing_received_functions();
     //testing_send_functions();
     return 0;
 }
 
+// Esse vai para o encoder
+//(1)ID_A - 0x0672 rtr=0 ide =0 dlc = 8   data = AAAAAAAAAAAAAAAA CRC = 000000001010001 (ACK=ok)(até EOF) (bit stuffing apenas no crc)
+// Saída do encoder deve ser a mesma do receiver
+
+// Esse frame vai para o received
+//0110011100100001000101010101010101010101010101010101010101010101010101010101010101000001000010100011011111111
+// saida do decoder deveria ser
+
+
+
+
+
+
+
+
+
+
 void testing_received_functions(){
     bool reade_bit = false;
-    int quant = 100;
+    int quant = 10000;
     setting_things_up();
     while(quant){
         cout << '\n' << quant << "\n";
+
         while(state != idle && state != error && state != overload){
             reade_bit = rand() % 2;            
             decoder(reade_bit);
@@ -34,8 +52,6 @@ void testing_received_functions(){
         setting_things_up();
     }
 }
-//000110011110111110101010110101001011 1100000110010111100010000001010101101010011000001000000--bit_stuff_error--0
-//000110011110111110101010110101001011 00000000000000000000110010111100010000000101011010100110000010000000000000000000001011111111
 
 void error_debbuger (){
     if(bit_stuff_error){
@@ -134,6 +150,3 @@ void debbug_myframe_can_A (){
         cout << my_frame.eof;
     cout << "\n";
 }
-
-//1 01000110011 0000001110010010000000000000001101111111
-//1 01000110011 1000001110010010000000000000001101111111
