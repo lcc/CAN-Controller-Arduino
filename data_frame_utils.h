@@ -1,10 +1,9 @@
-#include <iostream>
-#include <stdlib.h> 
-#include <cmath>
-#include <bitset>
-using namespace std;
-
-typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,error,inter_frame_space,idle} states;
+//#include "mbed.h"
+#include "math.h"
+#include "stdlib.h"
+#include "stdio.h"
+#include "bitset"
+typedef enum {SOF,arb_phase,control_field,data_field,CRC,ACK,EOFR,overload,erro,inter_frame_space,idle} states;
 typedef enum {schrodinger_frame,can_A,can_B} can_types;
 
 // transformed eof into a bool for praticity
@@ -15,11 +14,11 @@ typedef struct frame {
 }frame;
 
 
-// Flags responsible for triggering errors
-extern bool bit_stuff_error;
-extern bool start_seven_recessive_error;
-extern bool crc_error;
-extern bool form_error;
+// Flags responsible for triggering erros
+extern bool bit_stuff_erro;
+extern bool start_seven_recessive_erro;
+extern bool crc_erro;
+extern bool form_erro;
 
 //Bits responsible for logic control of reading and writing 
 
@@ -36,15 +35,17 @@ extern int tail_count;
 
 //Var responsible for keeping track of the state of the system
 extern states state;
-extern states error_state;
+extern states erro_state;
 extern can_types can_type;
 extern frame my_frame;
+
+extern bool lock;
 
 //----------------------------Functions Declarations---------------------------------------
 
 // essa função deve setar todas as flags de modo que todos os outros módulos
 // consigam interpretar se houve erro/bit_stuffed/qualquer flag de interesse
-void bit_stuff_error_detect();
+void bit_stuff_erro_detect();
 
 
 //Sets all variables to it's inital/specified values
@@ -63,7 +64,7 @@ void data_field_send_logic();
 void crc_field_send_logic();
 void ack_field_send_logic();
 void eof_field_send_logic();
-void error_frame_logic();
+void erro_frame_logic();
 void overload_frame_logic();
 void inter_frame_space_logic();
 
@@ -80,9 +81,6 @@ void inter_frame_space_check(bool read_bit);
 // functions that run to assist the mounting/sending of messages
 void bit_stuff_logic(bool read_bit);
 void dlc_correction();
-
 void change_mode(bool read_bit);
 bool encoder();
 void decoder(bool read_bit);
-
-

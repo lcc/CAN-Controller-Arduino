@@ -1,11 +1,18 @@
+#include <iostream>
 #include "data_frame_utils.h"
+#include "math.h"
+#include "stdlib.h"
+#include "bitset"
+
+using namespace std;
+
 
 //Initial state of global
-bool bit_stuff_error = false;
-bool start_seven_recessive_error = false;
-bool crc_error = false;
+bool bit_stuff_erro = false;
+bool start_seven_recessive_erro = false;
+bool crc_erro = false;
 // crc_delimeter,eof,ack_delimiter and intermission (inter_frame_space)
-bool form_error = false;
+bool form_erro = false;
 
 bool send_ack = true;
 bool write_bit = false;
@@ -17,7 +24,7 @@ bool bit_stuff = false;
 int bit_stuff_count = 1;
 
 states state = inter_frame_space;
-states error_state = inter_frame_space;
+states erro_state = inter_frame_space;
 
 can_types can_type = schrodinger_frame;
 frame my_frame;
@@ -29,10 +36,10 @@ int bit_pos = 0;
 
 
 void setting_things_up (){
-    bit_stuff_error = false;
-    form_error = false;
-    start_seven_recessive_error = false;
-    crc_error = false;
+    bit_stuff_erro = false;
+    form_erro = false;
+    start_seven_recessive_erro = false;
+    crc_erro = false;
 
     this_bit = false;
     last_bit = false;
@@ -41,7 +48,7 @@ void setting_things_up (){
     bit_stuff_count = 0;
     
     state = SOF;
-    error_state = inter_frame_space;
+    erro_state = inter_frame_space;
 
     count = 0;
     tail_count = 0;
@@ -76,12 +83,12 @@ void my_frame_zeros(){
     my_frame.eof = 1;
 }
 void my_frame_mount(){
-    my_frame.id = rand() % (int) pow(2,11);
+    my_frame.id = rand() % (int) pow(2.0,11);
     my_frame.id2 = 0;
     my_frame.dlc = rand() % 9;
-    my_frame.data = rand() % (int) (pow(2, my_frame.dlc*8 ));
+    my_frame.data = rand() % (int) (pow(2.0, my_frame.dlc*8 ));
     my_frame.ide = rand() % 2;
-    if(my_frame.ide){my_frame.id2 = rand() % (int) pow(2,18);}
+    if(my_frame.ide){my_frame.id2 = rand() % (int) pow(2.0,18);}
     my_frame.sof = 0;
     my_frame.rtr = rand() % 2;
     my_frame.srr = 1;
@@ -93,7 +100,7 @@ void my_frame_mount(){
     my_frame.crc_delimiter = 1;
 
     my_frame.ack_slot = 1;
-    my_frame.ack_delimeter = 0;
+    my_frame.ack_delimeter = 1;
     my_frame.eof = 1;
 }
 
@@ -104,8 +111,8 @@ void decoder(bool read_bit){
     if(!bit_stuff){mount_package(read_bit);}
     
     if(bit_stuff && read_bit == last_bit){
-        error_state = state;
-        state = error;
+        erro_state = state;
+        state = erro;
     }
 
     else if(bit_stuff && read_bit != last_bit){bit_stuff = false;bit_stuff_count = 0;}
@@ -122,6 +129,7 @@ bool encoder (){
     else{transmiss_bit = !last_bit; bit_stuff = false;bit_stuff_count=0;}
     if(state < ACK){bit_stuff_logic(transmiss_bit);}        
     
+    //lock = false;
     return transmiss_bit;
 }
 
@@ -132,6 +140,7 @@ bool set_bit_send (){
             case SOF:
                 count = 1;
                 this_bit = my_frame.sof;
+                last_bit = this_bit;
                 state = arb_phase;
                 tail_count = 12;
                 break;
@@ -153,11 +162,11 @@ bool set_bit_send (){
             case EOFR:
                 eof_field_send_logic();
                 break;
-             //averiguar o número de error_frame e overload_frame
-            case error:
-                error_frame_logic();
+             //averiguar o número de erro_frame e overload_frame
+            case erro:
+                erro_frame_logic();
             case overload:
-                error_frame_logic();
+                erro_frame_logic();
             case inter_frame_space:
                 inter_frame_space_logic();
         }
@@ -173,7 +182,7 @@ void inter_frame_space_logic(){
     }
 }
 
-void error_frame_logic(){
+void erro_frame_logic(){
     bit_pos = tail_count - count;
     count +=1;
     if (bit_pos > 6){
@@ -241,15 +250,19 @@ void crc_field_send_logic(){
 void data_field_send_logic(){
     bit_pos = tail_count - count;
     count+=1;
-    if(count <= tail_count){
-        //cout << count << " " << tail_count << " " << bit_pos << " ";
-        this_bit = (my_frame.data >> (bit_pos - 1)) & 1;
-        //cout << this_bit << "\n";
-        if(bit_pos == 1){
-            state = CRC;
-            tail_count = tail_count + 16;
+    if(!my_frame.rtr){
+        if(count <= tail_count){
+            this_bit = (my_frame.data >> (bit_pos - 1)) & 1;
+            if(bit_pos == 1){
+                state = CRC;
+                tail_count = tail_count + 16;
+            }
         }
+        
+        else{state = CRC;tail_count = tail_count + 16;}
     }
+    
+    else{count-=1;state = CRC;tail_count = count + 16;crc_field_send_logic();}
 
 }
 
@@ -367,9 +380,9 @@ void mount_package(bool read_bit) {
             break;
     }
     
-    if(state == error || state == overload){
+    if(state == erro || state == overload){
         write_bit = 1;
-        // error frame vai durar mais uns 12 bits
+        // erro frame vai durar mais uns 12 bits
         tail_count = count + 12;
     }
     
@@ -379,11 +392,11 @@ void inter_frame_space_check(bool read_bit){
     count+=1;
     
     if(count < tail_count){
-        if(!read_bit){error_state = state;state = overload; form_error = true;}
+        if(!read_bit){erro_state = state;state = overload; form_erro = true;}
     }
 
     else{
-        if(!read_bit){error_state = state; state = error; form_error = true;}
+        if(!read_bit){erro_state = state; state = erro; form_erro = true;}
         else{state = idle;}
     }
 }
@@ -392,9 +405,9 @@ void eof_field_mount (bool read_bit){
     count += 1;
     if(count < tail_count){
         if(!read_bit){
-            error_state = state;
-            state = error;
-            form_error = true;
+            erro_state = state;
+            state = erro;
+            form_erro = true;
         }
     }
     else{
@@ -413,7 +426,7 @@ void ack_field_mount(bool read_bit){
     else{
         my_frame.ack_delimeter = read_bit;
         state = EOFR;
-        if(!my_frame.ack_delimeter){state=error;form_error = true;}
+        if(!my_frame.ack_delimeter){erro_state=state;state=erro;form_erro = true;}
         tail_count = tail_count + 7;
     }
 }
@@ -427,14 +440,14 @@ void crc_field_mount(bool read_bit){
         bit_stuff_count = 0;
         my_frame.crc_delimiter = read_bit;
         state = ACK;
-        if(!my_frame.crc_delimiter){form_error = true;state = error;}
+        if(!my_frame.crc_delimiter){form_erro = true;state = erro;}
         tail_count = count + 2;
     }
 }
 
 void data_field_mount(bool read_bit){
     count+=1;
-    if(my_frame.rtr || my_frame.dlc == 0){
+    if(!my_frame.rtr && my_frame.dlc != 0){
         if(count < tail_count){
             //cout << count << " " << tail_count << " " << bit_pos << " ";
             my_frame.data = (my_frame.data << 1) | read_bit;
@@ -473,6 +486,7 @@ void control_field_mount (bool read_bit){
     else if(can_type == can_B){
         //cout << '\n' << count << " " << tail_count << " " << bit_pos << "\n";
         if (bit_pos == 7){
+            cout << "-----" << read_bit << "------" << count;
              my_frame.rtr = read_bit;
         }
         else if(bit_pos == 6){
@@ -553,6 +567,7 @@ void bit_stuff_logic(bool read_bit){
          if(read_bit == last_bit){
             bit_stuff_count += 1;
             //próximo bit tem que ser de stuff
+           // cout << " " <<  count << " ";
             if(bit_stuff_count == 5){
                 bit_stuff = true;
             }
@@ -593,8 +608,8 @@ void state_name (states curr_state){
         case idle:
             cout << "idle" << '\n';
             break;
-        case error:
-            cout << "error" << '\n';
+        case erro:
+            cout << "erro" << '\n';
             break;
         case overload:
             cout << "overload" << '\n';
@@ -667,3 +682,5 @@ void dlc_correction(){
         my_frame.dlc = 8;
     }
 }
+
+
