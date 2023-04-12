@@ -35,7 +35,7 @@ int bit_pos = 0;
 //This should intitialize all globla variables;
 
 
-void setting_things_up (){
+void setting_things_up(){
     bit_stuff_erro = false;
     form_erro = false;
     start_seven_recessive_erro = false;
@@ -463,6 +463,15 @@ void data_field_mount(bool read_bit){
     else{state = CRC; tail_count = count + 16 ;crc_field_mount(read_bit);}
     
 }
+
+void does_jack_shit(){
+
+	if(0){
+		prinft("do jack shit");
+	}
+}
+
+
 
 void control_field_mount (bool read_bit){
     bit_pos = tail_count - count;
